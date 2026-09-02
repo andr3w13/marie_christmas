@@ -542,6 +542,7 @@
     burstConfetti();
     initFormatCards();
   }
+
   /* ==========================================================
      КОНФЕТТИ
      ========================================================== */
@@ -663,10 +664,8 @@
     document.getElementById("ticketDay").textContent = DAY_LABELS[state.day];
     document.getElementById("ticketTime").textContent = state.time;
 
-    document.getElementById("screen-form").classList.add("hidden-screen");
-    document.getElementById("screen-ticket").classList.remove("hidden-screen");
+    showScreen("screen-ticket");
     burstConfetti(40);
-    window.scrollTo(0,0);
 
     sendAnswer(format);
   }
