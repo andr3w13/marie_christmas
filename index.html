@@ -401,6 +401,52 @@
   let dodgeCount = 0;
   let yesScale = 1;
 
+  // размер реально видимой области: на мобильных visualViewport точнее,
+  // чем window.innerWidth/innerHeight (учитывает панели браузера, зум и т.п.)
+  function getViewportSize(){
+    if(window.visualViewport){
+      return { w: window.visualViewport.width, h: window.visualViewport.height };
+    }
+    return { w: document.documentElement.clientWidth, h: window.innerHeight };
+  }
+
+  // считает безопасные границы для текущего размера кнопки и экрана.
+  // если кнопка вдруг шире/выше доступной области — не даёт диапазону
+  // "вывернуться" (min > max), а просто схлопывает его в одну точку.
+  function getBounds(){
+    const { w, h } = getViewportSize();
+    const btnW = noBtn.offsetWidth;
+    const btnH = noBtn.offsetHeight;
+    const margin = 12;
+
+    let minX = margin, maxX = w - btnW - margin;
+    if(maxX < minX){ const mid = (w - btnW) / 2; minX = maxX = mid; }
+
+    let minY = margin, maxY = h - btnH - margin;
+    if(maxY < minY){ const mid = (h - btnH) / 2; minY = maxY = mid; }
+
+    return { minX, maxX, minY, maxY };
+  }
+
+  function clampToBounds(x, y){
+    const b = getBounds();
+    return {
+      x: Math.min(Math.max(x, b.minX), b.maxX),
+      y: Math.min(Math.max(y, b.minY), b.maxY)
+    };
+  }
+
+  // держим кнопку в границах, даже если сменилась ориентация экрана,
+  // клавиатура на телефоне сдвинула visualViewport и т.п.
+  function keepNoButtonInView(){
+    if(!noBtn.classList.contains("fleeing")) return;
+    const curX = parseFloat(noBtn.style.left) || 0;
+    const curY = parseFloat(noBtn.style.top) || 0;
+    const clamped = clampToBounds(curX, curY);
+    noBtn.style.left = clamped.x + "px";
+    noBtn.style.top = clamped.y + "px";
+  }
+
   function moveNoButton(){
     dodgeCount++;
 
@@ -409,26 +455,36 @@
     yesBtn.style.transform = "scale(" + yesScale + ")";
     if(dodgeCount >= 2) yesBtn.classList.add("yes-glow");
 
-    // меняем текст на "Нет"
+    // меняем текст на "Нет" (это меняет ширину кнопки, поэтому границы
+    // ниже считаются уже ПОСЛЕ смены текста)
     noBtn.textContent = noPhrases[Math.min(dodgeCount, noPhrases.length-1)];
-
-    // рассчитываем безопасные границы (внутри экрана, с отступами)
-    const btnW = noBtn.offsetWidth;
-    const btnH = noBtn.offsetHeight;
-    const margin = 16;
-    const maxX = window.innerWidth - btnW - margin;
-    const maxY = window.innerHeight - btnH - margin;
-    const newX = Math.max(margin, Math.random() * maxX);
-    const newY = Math.max(margin, Math.random() * maxY);
 
     if(!noBtn.classList.contains("fleeing")){
       const rect = noBtn.getBoundingClientRect();
+      // ВАЖНО: карточка-обёртка (.pop-in) использует CSS-анимацию с
+      // animation-fill-mode: both, поэтому transform: scale(1) translateY(0)
+      // остаётся висеть на ней даже после завершения анимации. А по спецификации
+      // CSS любой transform на предке (даже "нулевой") создаёт для потомков
+      // с position:fixed СВОЙ containing block вместо окна браузера — из-за
+      // этого кнопка позиционировалась не от viewport, а от карточки, и могла
+      // визуально вылезать за реальные границы экрана.
+      // Решение: при начале "побега" переносим кнопку прямо в <body>, минуя
+      // все трансформированные предки, чтобы position:fixed считался честно
+      // от окна браузера.
+      document.body.appendChild(noBtn);
+      noBtn.style.position = "fixed";
+      noBtn.style.zIndex = "999";
       noBtn.style.left = rect.left + "px";
       noBtn.style.top = rect.top + "px";
       noBtn.classList.add("fleeing");
       // форсируем reflow, чтобы следующее изменение анимировалось
       void noBtn.offsetWidth;
     }
+
+    // рассчитываем безопасные границы (всегда внутри видимой области)
+    const b = getBounds();
+    const newX = b.minX + Math.random() * (b.maxX - b.minX);
+    const newY = b.minY + Math.random() * (b.maxY - b.minY);
 
     noBtn.style.left = newX + "px";
     noBtn.style.top = newY + "px";
@@ -452,6 +508,15 @@
     e.preventDefault();
     moveNoButton();
   });
+
+  // если изменился размер окна/ориентация/появилась мобильная клавиатура —
+  // подтягиваем кнопку обратно в границы вместо того, чтобы она осталась
+  // висеть за пределами экрана
+  window.addEventListener("resize", keepNoButtonInView);
+  window.addEventListener("orientationchange", keepNoButtonInView);
+  if(window.visualViewport){
+    window.visualViewport.addEventListener("resize", keepNoButtonInView);
+  }
 
   yesBtn.addEventListener("click", handleYes);
 
