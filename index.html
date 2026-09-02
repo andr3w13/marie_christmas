@@ -518,16 +518,30 @@
     window.visualViewport.addEventListener("resize", keepNoButtonInView);
   }
 
+  function showScreen(screenId){
+    document.querySelectorAll(".screen").forEach(screen => {
+      screen.classList.add("hidden-screen");
+    });
+
+    const target = document.getElementById(screenId);
+    if(target){
+      target.classList.remove("hidden-screen");
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
   yesBtn.addEventListener("click", handleYes);
 
   function handleYes(){
-    document.getElementById("screen-invite").classList.add("hidden-screen");
-    document.getElementById("screen-form").classList.remove("hidden-screen");
+    noBtn.style.display = "none";
+    noBtn.style.pointerEvents = "none";
+    noBtn.style.opacity = "0";
+    noBtn.classList.remove("fleeing");
+
+    showScreen("screen-form");
     burstConfetti();
     initFormatCards();
-    window.scrollTo(0,0);
   }
-
   /* ==========================================================
      КОНФЕТТИ
      ========================================================== */
